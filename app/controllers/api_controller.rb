@@ -1,6 +1,7 @@
 class ApiController < ApplicationController
 
 	def dump
+    request.format = :json
     command = params[:element].try(:to_sym)
 
     respond_to do |format|
@@ -12,6 +13,7 @@ class ApiController < ApplicationController
 	end
 
   def info
+    request.format = :json
     element = params[:element]
 
     respond_to do |format|
