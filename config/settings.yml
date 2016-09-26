@@ -1,0 +1,2 @@
+tinc:
+  cmd: docker exec tinc tinc
