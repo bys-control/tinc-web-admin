@@ -1,6 +1,6 @@
 module ApiHelper
 
-  def tinc
+  def tinc_cmd
     Settings.tinc.cmd
   end
 
@@ -13,13 +13,13 @@ module ApiHelper
         dump_element element
 
       when :graph, :digraph
-        graph = %x(#{tinc} dump #{element})
+        graph = %x(#{tinc_cmd} dump #{element})
         {
           data: graph
         }
 
       when :invitations
-        invitations = %x(#{tinc} dump #{element})
+        invitations = %x(#{tinc_cmd} dump #{element})
         {
           data: invitations
         }
@@ -40,7 +40,7 @@ module ApiHelper
   # @return [Hash] element information
   #
   def dump_element( element, max_keys=0 )
-    raw_elements = %x(#{tinc} dump #{element}).split("\n") || []
+    raw_elements = %x(#{tinc_cmd} dump #{element}).split("\n") || []
     elements = {}
 
     raw_elements.each do |raw_element|
@@ -54,7 +54,7 @@ module ApiHelper
   end
 
   def info( element=nil )
-    raw_info = %x(#{tinc} info #{element}).split("\n") || []
+    raw_info = %x(#{tinc_cmd} info #{element}).split("\n") || []
     info = {}
 
     raw_info.each do |param|
@@ -63,17 +63,17 @@ module ApiHelper
       value = raw_param.last
 
       key_value = case key
-        when :address
-          ip, port = value.split(' ', 2)
-          port = port.split(' ').last
-          {
-            address: ip,
-            port: port
-          }
-        when :options, :status
-          { key => value.split(' ') }
-        else
-          { key => value }
+      when :address
+        ip, port = value.split(' ', 2)
+        port = port.split(' ').last
+        {
+          address: ip,
+          port: port
+        }
+      when :options, :status
+        { key => value.split(' ') }
+      else
+        { key => value }
       end
 
       # If key already exists, push values into an array.
@@ -89,5 +89,77 @@ module ApiHelper
     info
   end
 
+  def export(format=:text)
+    raw_config = %x(#{tinc_cmd} export)
+
+    case format
+    when :json
+      export_json( raw_config )
+    else
+      raw_config
+    end
+  end
+
+  def export_all(format=:text)
+    raw_config = %x(#{tinc_cmd} export-all)
+
+    case format
+    when :json
+      config = {}
+      raw_config.split("#---------------------------------------------------------------#").each do |config_block|
+        data = export_json(config_block)
+        config[data[:Name]] = data
+      end
+      config
+    else
+      raw_config
+    end
+  end
+
+  def export_json( config )
+    raw_config = config.split("\n") || []
+    config = {
+      RSA_key: []
+    }
+    rsa_index = 0
+    rsa_capturing = false
+
+    # Extracts config sections
+    raw_config.each do |line|
+      if line.include? "-----END RSA" and rsa_capturing
+        config[:RSA_key][rsa_index].push line
+        rsa_capturing = false
+        rsa_index += 1
+      elsif line.include? "-----BEGIN RSA" or rsa_capturing
+        rsa_capturing = true
+        if config[:RSA_key][rsa_index].blank?
+          config[:RSA_key][rsa_index] = Array(line)
+        else
+          config[:RSA_key][rsa_index].push line
+        end
+      else
+        raw_param = line.split("=").map{|el| el.strip} || []
+        next if raw_param.empty?
+
+        key = raw_param.first.to_sym
+        value = raw_param.last
+
+        key_value = case key
+        when :Address
+          { key => value }
+        else
+          { key => value }
+        end
+
+        if config.key? key
+          config[key] = Array(config[key])
+          config[key].push value
+        else
+          config = config.merge! key_value
+        end
+      end
+    end
+    config
+  end
 
 end

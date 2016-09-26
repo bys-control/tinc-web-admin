@@ -29,4 +29,25 @@ class ApiController < ApplicationController
     end
   end
 
+  def export
+    respond_to do |format|
+      format.text do
+        render text: helpers.export
+      end
+      format.json do
+        render json: helpers.export(:json).as_json
+      end
+    end
+  end
+
+  def export_all
+    respond_to do |format|
+      format.text do
+        render text: helpers.export_all
+      end
+      format.json do
+        render json: helpers.export_all(:json).as_json
+      end
+    end
+  end
 end
